@@ -59,20 +59,24 @@ namespace Sitecore.Support.XA.Foundation.Multisite.EventHandlers
                 RefreshHttpRoutesArgs pipelineArgs = new RefreshHttpRoutesArgs(route);
                 CorePipeline.Run("refreshHttpRoutes", pipelineArgs);
 
-                foreach (HttpRouteDetails routeDetails in pipelineArgs.RoutesToRefresh)
+                RouteCollection registeredRoutes = RouteTable.Routes;
+                using (registeredRoutes.GetWriteLock())
                 {
-                    if (routeDetails.IsHttp)
+                    foreach (HttpRouteDetails routeDetails in pipelineArgs.RoutesToRefresh)
                     {
-                        RouteTable.Routes.MapHttpRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
-                    }
-                    else
-                    {
-                        RouteTable.Routes.MapRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
+                        if (routeDetails.IsHttp)
+                        {
+                            registeredRoutes.MapHttpRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
+                        }
+                        else
+                        {
+                            registeredRoutes.MapRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
+                        }
+
                     }
 
+                    registeredRoutes.MapHttpRoute(route + "sxa", route + "sxa/{controller}/{action}").RouteHandler = new SessionHttpControllerRouteHandler();
                 }
-
-                RouteTable.Routes.MapHttpRoute(route + "sxa", route + "sxa/{controller}/{action}").RouteHandler = new SessionHttpControllerRouteHandler();
             }
         }
 
