@@ -51,24 +51,27 @@
         private void PopulateRoutes()
         {
             foreach (string item in (from s in ServiceLocator.ServiceProvider.GetService<ISiteInfoResolver>().Sites
-                select s.VirtualFolder.Trim('/')).Distinct())
+                                     select s.VirtualFolder.Trim('/')).Distinct())
             {
                 string text = (item.Length > 0) ? (item + "/") : item;
                 RefreshHttpRoutesArgs refreshHttpRoutesArgs = new RefreshHttpRoutesArgs(text);
                 CorePipeline.Run("refreshHttpRoutes", refreshHttpRoutesArgs);
-                foreach (HttpRouteDetails item2 in refreshHttpRoutesArgs.RoutesToRefresh)
+                RouteCollection routes = RouteTable.Routes;
+                using (routes.GetWriteLock())
                 {
-                    if (item2.IsHttp)
+                    foreach (HttpRouteDetails routeDetails in refreshHttpRoutesArgs.RoutesToRefresh)
                     {
-                        RouteTable.Routes.MapHttpRoute(item2.Name, item2.RouteTemplate, item2.Defaults);
+                        if (routeDetails.IsHttp)
+                        {
+                            routes.MapHttpRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
+                        }
+                        else
+                        {
+                            routes.MapRoute(routeDetails.Name, routeDetails.RouteTemplate, routeDetails.Defaults);
+                        }
                     }
-                    else
-                    {
-                        RouteTable.Routes.MapRoute(item2.Name, item2.RouteTemplate, item2.Defaults);
-                    }
+                    routes.MapHttpRoute(text + "sxa", text + "sxa/{controller}/{action}").RouteHandler = new SessionHttpControllerRouteHandler();
                 }
-
-                RouteTable.Routes.MapHttpRoute(text + "sxa", text + "sxa/{controller}/{action}").RouteHandler = new SessionHttpControllerRouteHandler();
             }
         }
 
@@ -78,8 +81,8 @@
             Assert.ArgumentNotNull(args, "args");
             Log.Info("HttpRoutesRefresher clearing routes.", this);
             RouteBase[] array = (from route in RouteTable.Routes
-                where ((Route) route).Url.Contains("sxa/")
-                select route).ToArray();
+                                 where ((Route)route).Url.Contains("sxa/")
+                                 select route).ToArray();
             RouteCollection routes = RouteTable.Routes;
             using (routes.GetWriteLock())
             {
